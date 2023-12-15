@@ -1,0 +1,8 @@
+prefix=/home/straw/Documents/Spice/white/devel/.private/base_chalo
+
+Name: base_chalo
+Description: Description of base_chalo
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: roscpp rospy tf2 tf2_geometry_msgs tf2_ros

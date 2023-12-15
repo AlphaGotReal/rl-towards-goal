@@ -1,0 +1,1 @@
+/home/straw/Documents/Spice/white/devel/.private/simulation/share/simulation/cmake/simulationConfig.cmake

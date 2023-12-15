@@ -1,0 +1,174 @@
+#! /usr/bin/python3
+
+import os
+import sys
+import time
+import numpy as np
+sys.path.append(f"{os.getcwd()}/src/base_chalo/src")
+
+import rospy
+
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
+from geometry_msgs.msg import Twist
+from visualization_msgs.msg import Marker
+from std_srvs.srv import Empty
+from nav_msgs.msg import Odometry
+
+from agent import agent, actions
+
+actions.linear_vel_range = (0.3, 0.3)
+actions.linear_vel_buckets = 1
+actions.angular_vel_range = (-1, 1)
+actions.angular_vel_buckets = 3
+actions.update()
+
+class driver():
+    def __init__(self):
+        rospy.init_node("driver")
+
+        self.cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+        self.sphere_pub = rospy.Publisher("/goal", Marker, queue_size=1)
+
+        self.bot = None
+        self.goal = None
+        self.goal_marker = Marker()
+        self.goal_marker.header.frame_id = "odom"
+        self.goal_marker.ns = "goal"
+        self.goal_marker.id = 0
+        self.goal_marker.type = Marker.SPHERE
+        self.goal_marker.action = Marker.ADD
+        self.goal_marker.color.r = 1
+        self.goal_marker.color.g = 0
+        self.goal_marker.color.b = 0
+        self.goal_marker.color.a = 1
+
+        self.threshold = 1
+
+        self.agent = agent(
+            input_length=4,
+            n_actions=len(actions.activity),
+            #batch_size=float("inf"),
+            alpha=0.001,
+            gamma=0.99,
+            epsilon=1,
+            reuse=False
+        )
+
+        self.decay = 0.9999
+        self.return_ = 0
+        self.episode = 1
+
+        self.velocity = Twist()
+        self.state = None
+        self.action = None
+
+        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.get_odom)
+
+    def get_odom(self, odom):
+        self.bot = odom.pose.pose
+
+    def reached(self):
+        if (None in (self.goal, self.bot)): 
+            return False
+        dx = self.goal[0] - self.bot.position.x
+        dy = self.goal[1] - self.bot.position.y
+        return dx*dx + dy*dy < self.threshold*self.threshold
+
+    def lost(self, distance):
+        if (None in (self.goal, self.bot)): 
+            return False
+        dx = self.goal[0] - self.bot.position.x
+        dy = self.goal[1] - self.bot.position.y
+        return (dx*dx + dy*dy) > distance*distance
+
+    def gen_goal(self, distance, theta_range):
+        if (self.bot is None):
+            return None
+        bot_steer = 0#np.arctan2(self.bot.orientation.z, self.bot.orientation.w) * 2
+        theta = theta_range[0] + np.random.random()*(theta_range[1] - theta_range[0]) + bot_steer
+        dx = distance * np.cos(theta)
+        dy = distance * np.sin(theta)
+        x = self.bot.position.x + dx
+        y = self.bot.position.y + dy
+        self.goal_marker.pose.position.x = dx
+        self.goal_marker.pose.position.y = dy
+        self.goal_marker.pose.position.z = 0
+        self.goal_marker.scale.x = 2*self.threshold
+        self.goal_marker.scale.y = 2*self.threshold
+        self.goal_marker.scale.z = 2*self.threshold
+        return x, y
+
+    def reset_world(self):
+        try:
+            reset = rospy.ServiceProxy("/gazebo/reset_world", Empty)
+            reset()
+        except rospy.ServiceException as e:
+            print(f"{type(e)}: {e}")
+
+    def mainloop(self):
+        rate = rospy.Rate(15)
+        start_rate = rospy.Rate(1)
+        while not rospy.is_shutdown():
+            if (self.goal is None):
+                self.goal = self.gen_goal(2, (-np.pi/2, np.pi/2))
+                continue
+
+            self.sphere_pub.publish(self.goal_marker)
+
+            dx = self.goal[0] - self.bot.position.x
+            dy = self.goal[1] - self.bot.position.y
+            bot_steer = np.arctan2(self.bot.orientation.z, self.bot.orientation.w) * 2
+            goal_steer = np.arctan2(dy, dx) * 2
+            dtheta = goal_steer - bot_steer
+            new_state = [np.sin(dtheta), np.cos(dtheta), self.velocity.linear.x, self.velocity.angular.z]
+
+            action = self.agent.choose_action(new_state, echo=False)
+            v, w = actions.get(action)
+            self.velocity.linear.x = v
+            self.velocity.angular.z = w
+            self.cmd_pub.publish(self.velocity)
+
+            #print(new_state)
+            if (None in (self.state, self.action)):
+                self.action = action
+                self.state = new_state
+                continue
+
+            reached = self.reached()
+            lost = self.lost(3)
+
+            reward = 1 if reached else -0.1
+            done = reached or lost
+
+            #self.agent.store(self.state, new_state, action, reward, int(done))
+            self.agent.train(self.state, new_state, self.action, reward, int(done))
+            rate.sleep()
+            self.state = new_state
+            self.action = action
+            self.return_ += reward
+
+            self.agent.epsilon = self.agent.epsilon * self.decay
+
+            if (reached or lost):
+                self.reset_world()
+                #self.agent.learn()
+                #self.agent.memory.data = []
+                #self.agent.memory.length = 0
+                self.agent.update_main_model()
+                start = "\033[96m" if reached else "\033[93m"
+                print(f"{start}episode: {self.episode} return: {self.return_} exploration: {self.agent.epsilon}\033[0m")
+                reached = False
+                lost = False
+                self.episode += 1
+                self.return_ = 0
+                self.agent.save(f"{sys.argv[1]}.pth")
+                self.state = None
+                self.action = None
+                time.sleep(1)
+                self.bot = None
+                self.goal = None
+
+if __name__ == "__main__":
+    d = driver()
+    d.mainloop()
+

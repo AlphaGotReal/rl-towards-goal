@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="origin_xyz" default="-x 0 -y 0 -z 0.35002"/>
+    <arg name="origin_RPY" default="-R 0 -P 0 -Y 0"/>
+
+    <arg name="gui" default="false" />
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="gui" value="$(arg gui)" />
+    </include>
+    <include file="$(find robot_description)/launch/robot.launch" />
+    <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-file $(find simulation)/urdf/robot.urdf -urdf $(arg origin_xyz) $(arg origin_RPY) -model stupid_bot"/>
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find simulation)/sam.rviz" />
+
+</launch>

@@ -1,0 +1,147 @@
+#! /usr/bin/python3
+
+import os 
+import sys
+import time
+import numpy as np
+sys.path.append(f"{os.getcwd()}/src/base_chalo/src")
+
+import rospy
+
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Twist
+from visualization_msgs.msg import Marker
+from std_srvs.srv import Empty
+from nav_msgs.msg import Odometry, Path
+
+from agent import agent, actions
+
+actions.linear_vel_range = (0.4, 0.4)
+actions.linear_vel_buckets = 1
+actions.angular_vel_range = (-1, 1)
+actions.angular_vel_buckets = 5
+actions.update()
+
+class driver():
+
+    def __init__(self):
+        rospy.init_node("driver")
+
+        self.cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+        self.path_pub = rospy.Publisher("/path", Path, queue_size=1)
+
+        self.bot = None
+        self.path = None
+
+        self.threshold = 0.5
+
+        self.agent = agent(
+            input_length=4,
+            n_actions=len(actions.activity),
+            alpha=0.1,
+            gamma=1,
+            epsilon=0,
+            reuse=f"{sys.argv[1]}.pth"
+        )
+
+        self.velocity = Twist()
+        self.state = None
+        self.action = None
+
+        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.get_odom)
+
+    def get_odom(self, odom):
+        self.bot = odom.pose.pose
+
+    def reached(self, goal):
+        if (None is self.bot):
+            return False
+        dx = goal[0] - self.bot.position.x
+        dy = goal[1] - self.bot.position.y
+        return dx*dx + dy*dy < self.threshold*self.threshold
+
+    def lost(self, distance, goal):
+        if (None is self.bot):
+            return False
+        dx = goal[0] - self.bot.position.x
+        dy = goal[1] - self.bot.position.y
+        return (dx*dx + dy*dy) > distance*distance
+
+    def gen_path(self, length, gap, theta_range):
+
+        path = Path()
+        path.header.frame_id = "odom"
+
+        poses = []
+
+        prev_coor = (0, 0, 0)
+        prev_theta = 0
+
+        for r in range(length):
+
+            pose = PoseStamped()
+            pose.header.frame_id = "odom"
+            pose.pose.position = Point(*prev_coor)
+            theta = prev_theta + theta_range[0] + np.random.random()*(theta_range[1] - theta_range[0])
+            prev_coor = (prev_coor[0] + gap*np.cos(theta), prev_coor[1] + gap*np.sin(theta), 0)
+            prev_theta = theta
+
+            poses.append(pose)
+
+        path.poses = poses
+        return path
+
+    def reset_world(self):
+        try:
+            reset = rospy.ServiceProxy("/gazebo/reset_simulation", Empty)
+            reset()
+        except rospy.ServiceException as e:
+            print(f"{type(e)}: {e}")
+
+
+    def mainloop(self):
+
+        rate = rospy.Rate(6)
+        self.path = self.gen_path(100, 0.5, (-0.5, 0.5))
+        count = 5
+        goal = None
+        while not rospy.is_shutdown():
+
+            if (None in (goal, self.bot)):
+                goal = self.path.poses[count].pose.position.x, self.path.poses[count].pose.position.y
+                print(goal)
+                continue
+
+            self.path_pub.publish(self.path)
+
+            dx = goal[0] - self.bot.position.x
+            dy = goal[1] - self.bot.position.y
+
+            bot_steer = np.arctan2(self.bot.orientation.z, self.bot.orientation.w) * 2
+            goal_steer = np.arctan2(dy, dx)
+
+            dtheta = goal_steer - bot_steer
+
+            state = [np.sin(dtheta), np.cos(dtheta), self.velocity.linear.x, self.velocity.angular.z]
+            action = self.agent.choose_action(state, echo=False)
+            v, w = actions.get(action)
+
+            self.velocity.linear.x = v
+            self.velocity.angular.z = w
+            self.cmd_pub.publish(self.velocity)
+
+            reached = self.reached(goal)
+            lost = self.lost(4, goal)
+
+            if (reached):
+                goal = None
+                count += 5
+                if (count >= len(self.path.poses)):
+                    break
+
+            if (lost):
+                    break
+            
+
+t = driver()
+t.mainloop()
+

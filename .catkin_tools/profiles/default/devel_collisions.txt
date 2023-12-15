@@ -1,0 +1,1 @@
+/home/straw/Documents/Spice/white/devel/./cmake.lock 3

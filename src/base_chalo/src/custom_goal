@@ -1,0 +1,120 @@
+#! /usr/bin/python3
+
+import os
+import sys
+import time
+import numpy as np
+sys.path.append(f"{os.getcwd()}/src/base_chalo/src")
+
+import rospy
+
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
+from geometry_msgs.msg import Twist
+from visualization_msgs.msg import Marker
+from std_srvs.srv import Empty
+from nav_msgs.msg import Odometry
+
+from agent import agent, actions
+
+actions.linear_vel_range = (0.4, 0.4)
+actions.linear_vel_buckets = 1
+actions.angular_vel_range = (-0.5, 0.5)
+actions.angular_vel_buckets = 7
+actions.update()
+
+class driver():
+    def __init__(self):
+        rospy.init_node("driver")
+
+        self.cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+        self.sphere_pub = rospy.Publisher("/goal", Marker, queue_size=1)
+
+        self.bot = None
+        self.goal = None
+        self.goal_marker = Marker()
+        self.goal_marker.header.frame_id = "odom"
+        self.goal_marker.ns = "goal"
+        self.goal_marker.id = 0
+        self.goal_marker.type = Marker.SPHERE
+        self.goal_marker.action = Marker.ADD
+        self.goal_marker.color.r = 1
+        self.goal_marker.color.g = 0
+        self.goal_marker.color.b = 0
+        self.goal_marker.color.a = 1
+
+        self.threshold = 0.4
+
+        self.agent = agent(
+            input_length=4,
+            n_actions=len(actions.activity),
+            alpha=0.0001,
+            gamma=0.0,
+            epsilon=0.0,
+            reuse=f"{sys.argv[1]}.pth"
+        )
+
+        self.decay = 0#0.99995
+        self.return_ = 0
+        self.episode = 1
+
+        self.velocity = Twist()
+        self.state = None
+        self.action = None
+        self.distance = None
+        self.dtheta = None
+
+        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.get_odom)
+        self.goal_sub = rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.get_goal)
+
+    def get_odom(self, odom):
+        self.bot = odom.pose.pose
+
+    def reached(self):
+        if (None in (self.goal, self.bot)): 
+            return False
+        dx = self.goal[0] - self.bot.position.x
+        dy = self.goal[1] - self.bot.position.y
+        return dx*dx + dy*dy < self.threshold*self.threshold
+
+    def lost(self, distance):
+        if (None in (self.goal, self.bot)): 
+            return False
+        dx = self.goal[0] - self.bot.position.x
+        dy = self.goal[1] - self.bot.position.y
+        return (dx*dx + dy*dy) > distance*distance
+
+    def get_goal(self, goal):
+        x = goal.pose.position.x
+        y = goal.pose.position.y
+        self.goal = x, y
+        rate = rospy.Rate(1.5)
+
+        while (not self.reached() and not rospy.is_shutdown()):
+            dx = self.goal[0] - self.bot.position.x
+            dy = self.goal[1] - self.bot.position.y
+            bot_steer = np.arctan2(self.bot.orientation.z, self.bot.orientation.w) * 2
+            goal_steer = np.arctan2(dy, dx)
+            dtheta = goal_steer - bot_steer
+            state = [np.sin(dtheta), np.cos(dtheta), self.velocity.linear.x, self.velocity.angular.z]
+
+            action = self.agent.choose_action(state, echo=False)
+            v, w = actions.get(action)
+            self.velocity.linear.x = v
+            self.velocity.angular.z = w
+            self.cmd_pub.publish(self.velocity)
+
+            rate.sleep()
+
+        print("goal reached!")
+        self.velocity.linear.x = 0
+        self.velocity.angular.z = 0
+        self.cmd_pub.publish(self.velocity)
+
+    def mainloop(self):
+        while not rospy.is_shutdown():
+            pass
+
+if __name__ == "__main__":
+    d = driver()
+    d.mainloop()
+
