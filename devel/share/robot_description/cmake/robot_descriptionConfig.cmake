@@ -1,1 +1,0 @@
-/home/straw/Documents/Spice/white/devel/.private/robot_description/share/robot_description/cmake/robot_descriptionConfig.cmake

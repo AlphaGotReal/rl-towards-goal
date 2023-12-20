@@ -1,1 +1,0 @@
-/home/straw/Documents/Spice/white/devel/.private/base_chalo/share/base_chalo/cmake/base_chaloConfig-version.cmake
