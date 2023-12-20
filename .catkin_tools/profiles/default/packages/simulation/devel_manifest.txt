@@ -1,5 +1,0 @@
-simulation
-/home/straw/Documents/Spice/white/devel/.private/simulation/cmake.lock /home/straw/Documents/Spice/white/devel/./cmake.lock
-/home/straw/Documents/Spice/white/devel/.private/simulation/share/simulation/cmake/simulationConfig-version.cmake /home/straw/Documents/Spice/white/devel/share/simulation/cmake/simulationConfig-version.cmake
-/home/straw/Documents/Spice/white/devel/.private/simulation/share/simulation/cmake/simulationConfig.cmake /home/straw/Documents/Spice/white/devel/share/simulation/cmake/simulationConfig.cmake
-/home/straw/Documents/Spice/white/devel/.private/simulation/lib/pkgconfig/simulation.pc /home/straw/Documents/Spice/white/devel/lib/pkgconfig/simulation.pc

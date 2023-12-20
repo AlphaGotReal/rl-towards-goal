@@ -1,7 +1,0 @@
-base_chalo
-/home/straw/Documents/Spice/white/devel/.private/base_chalo/cmake.lock /home/straw/Documents/Spice/white/devel/./cmake.lock
-/home/straw/Documents/Spice/white/devel/.private/base_chalo/share/base_chalo/cmake/base_chaloConfig.cmake /home/straw/Documents/Spice/white/devel/share/base_chalo/cmake/base_chaloConfig.cmake
-/home/straw/Documents/Spice/white/devel/.private/base_chalo/share/base_chalo/cmake/base_chaloConfig-version.cmake /home/straw/Documents/Spice/white/devel/share/base_chalo/cmake/base_chaloConfig-version.cmake
-/home/straw/Documents/Spice/white/devel/.private/base_chalo/lib/base_chalo/cmake.lock /home/straw/Documents/Spice/white/devel/lib/base_chalo/cmake.lock
-/home/straw/Documents/Spice/white/devel/.private/base_chalo/lib/base_chalo/driver /home/straw/Documents/Spice/white/devel/lib/base_chalo/driver
-/home/straw/Documents/Spice/white/devel/.private/base_chalo/lib/pkgconfig/base_chalo.pc /home/straw/Documents/Spice/white/devel/lib/pkgconfig/base_chalo.pc
