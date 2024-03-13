@@ -48,4 +48,4 @@ Some trained weights are stored under the folder "five"
 - five/run2.pth # input_length = 4, output_length = 5 (five angular velocities)
 
 ## Here is the image of the ground vehicle following a path
-![alt text](https://github.com/AlphaGotReal/rl-towards-goal/blob/main/imgs/image.jpg?raw=true)
+![alt text](https://github.com/AlphaGotReal/rl-towards-goal/blob/main/imgs/image.png?raw=true)
