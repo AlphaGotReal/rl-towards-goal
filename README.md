@@ -42,8 +42,10 @@ Make it follow randomly generated path
   ```bash
   rosrun base_chalo follow_a_path <name-of-file-without-extension>
   ```
+
 Some trained weights are stored under the folder "five"
 - five/run1.pth 
 - five/run2.pth # input_length = 4, output_length = 5 (five angular velocities)
 
-
+## Here is the image of the ground vehicle following a path
+![alt text](https://github.com/AlphaGotReal/rl-towards-goal/blob/main/imgs/image.jpg?raw=true)
